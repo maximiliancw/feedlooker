@@ -26,7 +26,6 @@ class RSSCrawler:
         self.rss_feeds = set()
         self.max_depth = max_depth
         self.stop_early = stop_early
-        # Common feed paths.
         self.common_feed_paths = [
             "/rss",
             "/feed",
@@ -34,8 +33,7 @@ class RSSCrawler:
             "/atom.xml",
             "/rss.xml",
         ]
-        # Common paths for sitemap.
-        self.sitemap_paths = ["/sitemap.xml"]
+        self.common_sitemap_paths = ["/sitemap.xml"]
 
     async def fetch(self, session, url, accept_header=None):
         """
@@ -71,10 +69,9 @@ class RSSCrawler:
         """Filtering invalid protocols within URLs"""
         blacklist = ("mailto:", "tel:")
         parsed_url = urlparse(url)
-        return parsed_url.scheme in [
-            "http",
-            "https",
-        ] and not any(parsed_url.path.startswith(s) for s in blacklist)
+        return parsed_url.scheme in ["http", "https"] and not any(
+            parsed_url.path.startswith(s) for s in blacklist
+        )
 
     async def find_rss_links(self, html, base_url):
         """
@@ -261,27 +258,20 @@ class RSSCrawler:
         return list(self.rss_feeds)
 
 
-async def main(start_url, max_depth=2, stop_early=True):
+class FeedLooker:
     """
-    Main function to initiate the RSS crawling process.
-
-    Args:
-        start_url (str): The URL to start crawling from.
-        max_depth (int): The maximum depth for crawling.
-
-    Returns:
-        list: A list of RSS feeds found during the crawl.
+    FeedLooker provides a unified interface to crawl a website for RSS feeds.
+    Supports both async and sync usage.
     """
-    crawler = RSSCrawler(max_depth, stop_early)
-    await crawler.crawl(start_url)
-    return crawler.get_rss_feeds()
 
+    def __init__(self, max_depth=2, stop_early=True):
+        self.crawler = RSSCrawler(max_depth, stop_early)
 
-if __name__ == "__main__":
-    start_url = input("Enter the starting URL: ")
-    depth = int(input("Enter the max depth for crawling: "))
-    stop_early = input("Stop after first result [y/n]: ") == "y"
-    feeds = asyncio.run(main(start_url, depth, stop_early))
-    print("Found RSS Feeds:")
-    for url in feeds:
-        print(url)
+    def get_feeds(self, url):
+        """Synchronously fetch RSS feeds from a URL"""
+        return asyncio.run(self.get_feeds_async(url))
+
+    async def get_feeds_async(self, url):
+        """Asynchronously fetch RSS feeds from a URL"""
+        await self.crawler.crawl(url)
+        return self.crawler.get_rss_feeds()
