@@ -12,26 +12,30 @@ class RSSCrawler:
     Includes methods for analyzing common paths, sitemaps, and content negotiation.
     """
 
-    def __init__(self, max_depth=2):
+    def __init__(self, max_depth: int = 2, stop_early: bool = True):
         """
         Initializes the RSSCrawler instance.
 
         Args:
             max_depth (int): Maximum depth to crawl the website.
+            stop_early (bool): Stop crawling after first result.
         """
-        self.visited_urls = (
-            set()
-        )  # Keeps track of visited URLs to prevent duplicate visits.
-        self.rss_feeds = set()  # Stores found RSS feeds as a set of URLs.
-        self.max_depth = max_depth  # Maximum depth for crawling.
+        # Keeps track of visited URLs to prevent duplicate visits.
+        self.visited_urls = set()
+        # Stores found RSS feeds as a set of URLs.
+        self.rss_feeds = set()
+        self.max_depth = max_depth
+        self.stop_early = stop_early
+        # Common feed paths.
         self.common_feed_paths = [
             "/rss",
             "/feed",
             "/feeds",
             "/atom.xml",
             "/rss.xml",
-        ]  # Common feed paths.
-        self.sitemap_paths = ["/sitemap.xml"]  # Common paths for sitemap.
+        ]
+        # Common paths for sitemap.
+        self.sitemap_paths = ["/sitemap.xml"]
 
     async def fetch(self, session, url, accept_header=None):
         """
@@ -200,8 +204,15 @@ class RSSCrawler:
 
         current_depth = self.get_url_depth(url)
 
-        if url in self.visited_urls or current_depth > self.max_depth:
+        if len(self.rss_feeds) > 0 and self.stop_early:
             return
+
+        if url in self.visited_urls:
+            return
+
+        if current_depth > self.max_depth:
+            return
+
         self.visited_urls.add(url)
 
         async with aiohttp.ClientSession() as session:
@@ -218,7 +229,7 @@ class RSSCrawler:
                         await self.negotiate_feed_content(session, url)
 
                 # Crawl linked pages if not at max depth
-                if current_depth < self.max_depth:
+                if current_depth <= self.max_depth:
                     soup = BeautifulSoup(html, "html.parser")
                     tasks = []
                     for a_tag in soup.find_all("a", href=True):
@@ -250,7 +261,7 @@ class RSSCrawler:
         return list(self.rss_feeds)
 
 
-async def main(start_url, max_depth=2):
+async def main(start_url, max_depth=2, stop_early=True):
     """
     Main function to initiate the RSS crawling process.
 
@@ -261,7 +272,7 @@ async def main(start_url, max_depth=2):
     Returns:
         list: A list of RSS feeds found during the crawl.
     """
-    crawler = RSSCrawler(max_depth=max_depth)
+    crawler = RSSCrawler(max_depth, stop_early)
     await crawler.crawl(start_url)
     return crawler.get_rss_feeds()
 
@@ -269,7 +280,8 @@ async def main(start_url, max_depth=2):
 if __name__ == "__main__":
     start_url = input("Enter the starting URL: ")
     depth = int(input("Enter the max depth for crawling: "))
-    feeds = asyncio.run(main(start_url, max_depth=depth))
+    stop_early = input("Stop after first result [y/n]: ") == "y"
+    feeds = asyncio.run(main(start_url, depth, stop_early))
     print("Found RSS Feeds:")
     for url in feeds:
         print(url)
